@@ -1,0 +1,16 @@
+# Intentional fault: this selector matches no Pod, so the Service has no endpoints.
+apiVersion: v1
+kind: Service
+metadata:
+  name: troubleshooting-empty-service
+  namespace: taskboard
+  labels:
+    app: troubleshooting-empty-service
+spec:
+  type: ClusterIP
+  selector:
+    app: workload-label-that-does-not-exist
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000

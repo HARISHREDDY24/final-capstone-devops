@@ -1,0 +1,72 @@
+nameOverride: ""
+fullnameOverride: ""
+imagePullSecrets: []
+
+backend:
+  replicaCount: 2
+  image:
+    repository: taskboard-backend
+    tag: local
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+frontend:
+  replicaCount: 2
+  image:
+    repository: taskboard-frontend
+    tag: local
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+postgresql:
+  image: postgres:16-alpine
+  database: taskboard
+  username: taskboard
+  password: taskboard-dev-only
+  storage: 2Gi
+  storageClassName: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+ingress:
+  enabled: true
+  className: nginx
+  host: taskboard.local
+  annotations: {}
+
+serviceMonitor:
+  enabled: false
+  labels:
+    release: monitoring
+  interval: 30s
+
+# Classroom/demo values only. For real use, store database credentials in a secret manager
+# and do not commit production passwords, tokens, or image-pull credentials to Git.

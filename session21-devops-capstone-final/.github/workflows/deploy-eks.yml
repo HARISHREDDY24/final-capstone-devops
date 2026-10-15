@@ -1,0 +1,69 @@
+name: Deploy TaskBoard to EKS (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Full Git commit SHA used to tag the GHCR images
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+  packages: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Configure kubectl
+        env:
+          EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+        run: aws eks update-kubeconfig --region "$AWS_REGION" --name "$EKS_CLUSTER_NAME"
+      - name: Set lowercase image names
+        shell: bash
+        run: echo "IMAGE_PREFIX=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      - name: Configure optional GHCR image pull secret
+        env:
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          if [[ -n "$GHCR_USERNAME" && -n "$GHCR_TOKEN" ]]; then
+            kubectl create namespace taskboard --dry-run=client -o yaml | kubectl apply -f -
+            kubectl create secret docker-registry ghcr-pull -n taskboard \
+              --docker-server=ghcr.io --docker-username="$GHCR_USERNAME" \
+              --docker-password="$GHCR_TOKEN" --dry-run=client -o yaml | kubectl apply -f -
+            echo "USE_GHCR_PULL_SECRET=true" >> "$GITHUB_ENV"
+          else
+            echo "USE_GHCR_PULL_SECRET=false" >> "$GITHUB_ENV"
+            echo "No GHCR credentials supplied; the packages must be public for the Pods to pull them."
+          fi
+      - name: Deploy with Helm
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          EXTRA_ARGS=()
+          if [[ "$USE_GHCR_PULL_SECRET" == "true" ]]; then
+            EXTRA_ARGS+=(--set imagePullSecrets[0].name=ghcr-pull)
+          fi
+          helm upgrade --install taskboard ./helm/taskboard \
+            --namespace taskboard --create-namespace \
+            --set backend.image.repository="${IMAGE_PREFIX}-backend" \
+            --set frontend.image.repository="${IMAGE_PREFIX}-frontend" \
+            --set backend.image.tag="$IMAGE_TAG" \
+            --set frontend.image.tag="$IMAGE_TAG" \
+            "${EXTRA_ARGS[@]}"
+      - name: Check rollout
+        run: |
+          kubectl rollout status deployment/backend -n taskboard --timeout=180s
+          kubectl rollout status deployment/frontend -n taskboard --timeout=180s
+          kubectl get pods,svc,hpa -n taskboard
