@@ -1,0 +1,19 @@
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    additionalScrapeConfigs:
+      - job_name: resolvehub-backend
+        metrics_path: /metrics
+        static_configs:
+          - targets: ['backend.resolvehub.svc.cluster.local:8000']
+grafana:
+  enabled: true
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+  adminPassword: change-this-password
+  service:
+    type: ClusterIP
