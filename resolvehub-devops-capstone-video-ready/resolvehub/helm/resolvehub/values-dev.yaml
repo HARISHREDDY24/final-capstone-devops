@@ -1,0 +1,10 @@
+backend:
+  replicas: 1
+frontend:
+  replicas: 1
+ingress:
+  enabled: true
+  className: nginx
+  host: resolvehub.local
+hpa:
+  enabled: false

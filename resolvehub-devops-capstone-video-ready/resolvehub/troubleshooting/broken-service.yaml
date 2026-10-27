@@ -1,0 +1,12 @@
+# Intentionally broken selector example. The label does not match backend Pods.
+apiVersion: v1
+kind: Service
+metadata:
+  name: broken-backend-service-lab
+  namespace: resolvehub
+spec:
+  selector:
+    app: backend-does-not-exist
+  ports:
+    - port: 8000
+      targetPort: 8000
